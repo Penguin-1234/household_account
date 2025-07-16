@@ -1,8 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:table_calendar/table_calendar.dart';
+import 'package:intl/intl.dart'; // 金額をフォーマットするためにインポート
+
 
 class CalendarPage extends StatefulWidget {
-  const CalendarPage({super.key});
+  // --- 変更点: 親からデータと更新用の関数を受け取る ---
+  final Map<DateTime, Map<String, List<Map<String, dynamic>>>> entries;
+  final Function(Map<DateTime, Map<String, List<Map<String, dynamic>>>>) onUpdateEntries;
+
+  const CalendarPage({
+    super.key,
+    required this.entries,
+    required this.onUpdateEntries,
+  });
+
   @override
   State<CalendarPage> createState() => _CalendarPageState();
 }
@@ -13,11 +24,12 @@ class _CalendarPageState extends State<CalendarPage> {
   DateTime _currentDay =
   DateTime.utc(DateTime.now().year, DateTime.now().month, DateTime.now().day);
 
-  // 収入・支出を日付ごとに記録
-  final Map<DateTime, Map<String, List<Map<String, dynamic>>>> _entries = {};
+  final formatter = NumberFormat("#,###");
 
   @override
   Widget build(BuildContext context) {
+    final summary=_getMonthlySummary();
+    final balance=summary['balance']??0;
     return Scaffold(
       appBar: AppBar(
         title: const Text('お小遣い帳'),
@@ -48,6 +60,27 @@ class _CalendarPageState extends State<CalendarPage> {
               ),
             ),
             const SizedBox(height: 12),
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical:12,horizontal: 16),
+              child:Wrap(
+                alignment: WrapAlignment.center,
+                spacing:4, //横方向の間隔
+                runSpacing:8, //開業時の縦方向の間隔
+                children: [
+                  Text(
+                    '今月の合計',
+                    style:const TextStyle(fontSize: 16,fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(width:16),
+                    Text('収入：${formatter.format(summary['income'])}円'),
+                    const SizedBox(width:16),
+                    Text('支出：${formatter.format(summary['expense'])}円'),
+                    const SizedBox(width:16),
+                    Text(
+                    '収支：${balance > 0 ? '+' : ''}${formatter.format(summary['balance'])}円'),
+                ],
+              ),
+            ),
             Expanded(
               child: ListView(
                 padding: const EdgeInsets.all(8),
@@ -56,10 +89,10 @@ class _CalendarPageState extends State<CalendarPage> {
                   _buildEntryList('支出'),
                   const Divider(),
                   Text(
-                    '収支：¥${_getBalance()}',
-                    style: const TextStyle(
-                        fontSize: 16, fontWeight: FontWeight.bold),
+                    '収支：${balance > 0 ? '+' : ''}${formatter.format(summary['balance'])}円',
+                    style: const TextStyle(fontWeight: FontWeight.bold),
                   ),
+
                 ],
               ),
             ),
@@ -72,25 +105,25 @@ class _CalendarPageState extends State<CalendarPage> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Expanded(
-             child: ElevatedButton(
-              onPressed: () => _showEntryDialog(type: '収入'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.blue,
-                minimumSize: const Size(double.infinity, 48),
+              child: ElevatedButton(
+                onPressed: () => _showEntryDialog(type: '収入'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.blue,
+                  minimumSize: const Size(double.infinity, 48),
+                ),
+                child: const Text('収入を追加'),
               ),
-              child: const Text('収入を追加'),
             ),
-            ),
-            const SizedBox(width: 12), //収入と支出の間のスペース
+            const SizedBox(width: 12),
             Expanded(
-            child:  ElevatedButton(
-              onPressed: () => _showEntryDialog(type: '支出'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.red,
-                minimumSize: const Size(double.infinity, 48),
+              child: ElevatedButton(
+                onPressed: () => _showEntryDialog(type: '支出'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.red,
+                  minimumSize: const Size(double.infinity, 48),
+                ),
+                child: const Text('支出を追加'),
               ),
-              child: const Text('支出を追加'),
-            ),
             ),
           ],
         ),
@@ -98,16 +131,15 @@ class _CalendarPageState extends State<CalendarPage> {
     );
   }
 
-  //特定の日付の「支出 or 収入」の一覧を取得
   List<Map<String, dynamic>> _getEntriesForDay(DateTime day, String type) {
     final date = DateTime.utc(day.year, day.month, day.day);
-    return _entries[date]?[type] ?? [];
+    return widget.entries[date]?[type] ?? [];
   }
 
-  // 一覧と合計を表示
+  //Widgetを返す関数
   Widget _buildEntryList(String type) {
-    final entries = _getEntriesForDay(_currentDay, type);
-    final total = entries.fold(0, (sum, e) => sum + (e['amount'] as int));
+    final entries = _getEntriesForDay(_currentDay, type); //その日のデータをMapで取得
+    final total = entries.fold(0, (sum, e) => sum + (e['amount'] as int));  //合計金額の計算
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -116,27 +148,25 @@ class _CalendarPageState extends State<CalendarPage> {
           '$type一覧:',
           style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
         ),
-        ...entries.map((entry) => ListTile(
+        ...entries.map((entry) => ListTile( //ListTileでリスト表示できる
           leading: Icon(_getCategoryIcon(entry['category'])),
-          title: Text('${entry['category']}：¥${entry['amount']}'),
+          title: Text('${entry['category']}：${formatter.format(entry['amount'])}円'),
         )),
-        Text('合計：¥$total',
+        Text('合計：${formatter.format(total)}円',
             style: const TextStyle(fontWeight: FontWeight.bold)),
         const SizedBox(height: 12),
       ],
     );
   }
 
-  // 収支（収入 − 支出）を計算
   int _getBalance() {
-    final income =
-    _getEntriesForDay(_currentDay, '収入').fold(0, (sum, e) => sum + (e['amount'] as int));
-    final expense =
-    _getEntriesForDay(_currentDay, '支出').fold(0, (sum, e) => sum + (e['amount'] as int));
+    final income = _getEntriesForDay(_currentDay, '収入')
+        .fold(0, (sum, e) => sum + (e['amount'] as int));
+    final expense = _getEntriesForDay(_currentDay, '支出')
+        .fold(0, (sum, e) => sum + (e['amount'] as int));
     return income - expense;
   }
 
-  // カテゴリに応じてアイコンを表示
   IconData _getCategoryIcon(String category) {
     switch (category) {
       case '食費':
@@ -153,12 +183,33 @@ class _CalendarPageState extends State<CalendarPage> {
         return Icons.work;
       case 'お小遣い':
         return Icons.monetization_on;
+      case '副業':
+        return Icons.laptop;
       default:
         return Icons.attach_money;
     }
   }
+  //月の収支を計算する関数
+  Map<String,int> _getMonthlySummary(){
+    int income=0;
+    int expense=0;
 
-  // 収入/支出の入力ダイアログ
+    widget.entries.forEach((date,types){
+      if(date.year==_focusedDay.year&&date.month==_focusedDay.month){
+        final incomeList=types['収入']??[];
+        final expenseList=types['支出']??[];
+        income+=incomeList.fold(0,(sum,e)=>sum + (e['amount']as int));
+        expense+=expenseList.fold(0,(sum,e)=>sum + (e['amount']as int));
+
+      }
+    });
+    return{
+      'income':income,
+      'expense':expense,
+      'balance':income-expense,
+    };
+  }
+
   Future<void> _showEntryDialog({required String type}) async {
     final controller = TextEditingController();
     String selectedCategory = type == '支出' ? '食費' : '給料';
@@ -176,7 +227,7 @@ class _CalendarPageState extends State<CalendarPage> {
                   value: selectedCategory,
                   items: (type == '支出'
                       ? ['食費', '交通費', '日用品', '娯楽', 'その他']
-                      : ['給料', 'その他'])
+                      : ['給料', 'お小遣い', '副業', 'その他'])
                       .map((category) => DropdownMenuItem(
                     value: category,
                     child: Text(category),
@@ -193,27 +244,25 @@ class _CalendarPageState extends State<CalendarPage> {
                 TextField(
                   controller: controller,
                   keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(hintText: '金額を入力（例：1000）'),
+                  decoration: const InputDecoration(hintText: '金額を入力（例：1,000）'),
                 ),
               ],
             ),
             actions: [
               TextButton(
-                onPressed:(){
-                  Navigator.pop(context); //単に閉じるだけ
+                onPressed: () {
+                  Navigator.pop(context);
                 },
                 child: const Text('キャンセル'),
               ),
               TextButton(
                 onPressed: () {
                   final amount = int.tryParse(controller.text);
-                  if (amount != null) {
+                  if (amount != null && amount > 0) { // 金額が有効かチェック
                     Navigator.pop(context, {
                       'category': selectedCategory,
                       'amount': amount,
                     });
-                  } else {
-                    Navigator.pop(context, null);
                   }
                 },
                 child: const Text('追加'),
@@ -225,12 +274,12 @@ class _CalendarPageState extends State<CalendarPage> {
     );
 
     if (result != null) {
-      setState(() {
-        final date =
-        DateTime.utc(_currentDay.year, _currentDay.month, _currentDay.day);
-        _entries[date] ??= {'収入': [], '支出': []};
-        _entries[date]![type]!.add(result);
-      });
+      final newEntries = Map<DateTime, Map<String, List<Map<String, dynamic>>>>.from(widget.entries);
+      final date =
+      DateTime.utc(_currentDay.year, _currentDay.month, _currentDay.day);
+      newEntries[date] ??= {'収入': [], '支出': []};
+      newEntries[date]![type]!.add(result);
+      widget.onUpdateEntries(newEntries);
     }
   }
 }

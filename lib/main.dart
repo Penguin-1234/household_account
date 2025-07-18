@@ -49,7 +49,7 @@ class _HomeScreenState extends State<HomeScreen> {
       entries: _entries,
       year: now.year,
       month: now.month,
-      type: '支出',
+      type: '収入',
     );
     final expenceMap = getMonthlyCategoryTotals(
       entries: _entries,

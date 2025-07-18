@@ -52,7 +52,7 @@ class _GraphPageState extends State<GraphPage> {
             },
             child: Text(
               _isIncome ? '支出に切り替え' : '収入に切り替え',
-              style: const TextStyle(color: Colors.white),
+              style: const TextStyle(color: Colors.black),
             ),
           ),
         ],

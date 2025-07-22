@@ -61,7 +61,7 @@ class _PredictionPageState extends State<PredictionPage> {
             icon: const Icon(Icons.arrow_back_ios),
           ),
           Text(
-            DateFormat('yyyy年MM月').format(_selectedMonth),
+            DateFormat('yyyy年M月').format(_selectedMonth),
             style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
           ),
           IconButton(
@@ -235,7 +235,7 @@ class _PredictionPageState extends State<PredictionPage> {
                       getTooltipItems: (List<LineBarSpot> touchedSpots) {
                         return touchedSpots.map((LineBarSpot touchedSpot) {
                           final isActual = touchedSpot.barIndex == 0;
-                          final label = isActual ? '実際' : '予測';
+                          final label = isActual ? 'これまで' : '予測';
                           return LineTooltipItem(
                             '$label\n${touchedSpot.x.toInt()}日: ${_formatCurrency(touchedSpot.y.toInt())}円',
                             const TextStyle(
@@ -284,7 +284,7 @@ class _PredictionPageState extends State<PredictionPage> {
             ),
             const SizedBox(width: 4),
             const Text(
-              '実際',
+              'これまで',
               style: TextStyle(fontSize: 12, color: Colors.black54),
             ),
             const SizedBox(width: 12),
@@ -307,6 +307,64 @@ class _PredictionPageState extends State<PredictionPage> {
     );
   }
 
+  // 予測情報を表示するウィジェット
+  Widget _buildPredictionInfo() {
+    final predictionData = _calculatePredictionData();
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      child: Card(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                '予測情報',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text('現在の累積支出：'),
+                  Text('${formatter.format(predictionData['currentTotal'])}円'),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text('月末予測支出：'),
+                  Text(
+                    '${formatter.format(predictionData['predictedTotal'])}円',
+                    style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.red),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text('1日平均支出：'),
+                  Text('${formatter.format(predictionData['dailyAverage'])}円'),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text('残り日数：'),
+                  Text('${predictionData['remainingDays']}日'),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   // 通貨フォーマット関数
   String _formatCurrency(int value) {
     if (value >= 10000) {
@@ -314,163 +372,108 @@ class _PredictionPageState extends State<PredictionPage> {
     } else if (value >= 1000) {
       return '${(value / 1000).toStringAsFixed(1)}千';
     } else {
-      return '${value}';
-    }
-  }
-  final predictionData = _calculatePredictionData();
-
-  return Container(
-  padding: const EdgeInsets.all(16),
-  child: Card(
-  child: Padding(
-  padding: const EdgeInsets.all(16),
-  child: Column(
-  crossAxisAlignment: CrossAxisAlignment.start,
-  children: [
-  const Text(
-  '予測情報',
-  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-  ),
-  const SizedBox(height: 12),
-  Row(
-  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-  children: [
-  Text('現在の累積支出：'),
-  Text('${formatter.format(predictionData['currentTotal'])}円'),
-  ],
-  ),
-  const SizedBox(height: 8),
-  Row(
-  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-  children: [
-  Text('月末予測支出：'),
-  Text(
-  '${formatter.format(predictionData['predictedTotal'])}円',
-  style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.red),
-  ),
-  ],
-  ),
-  const SizedBox(height: 8),
-  Row(
-  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-  children: [
-  Text('1日平均支出：'),
-  Text('${formatter.format(predictionData['dailyAverage'])}円'),
-  ],
-  ),
-  const SizedBox(height: 8),
-  Row(
-  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-  children: [
-  Text('残り日数：'),
-  Text('${predictionData['remainingDays']}日'),
-  ],
-  ),
-  ],
-  ),
-  ),
-  ),
-  );
-}
-
-Map<String, List<FlSpot>> _calculateChartData() {
-  final daysInMonth = _getDaysInMonth(_selectedMonth);
-  final actualSpots = <FlSpot>[];
-  final predictionSpots = <FlSpot>[];
-
-  int cumulativeExpense = 0;
-  final today = DateTime.now();
-  final currentDay = (today.year == _selectedMonth.year && today.month == _selectedMonth.month)
-      ? today.day : daysInMonth;
-
-  // 実際のデータを計算
-  for (int day = 1; day <= currentDay && day <= daysInMonth; day++) {
-    final date = DateTime.utc(_selectedMonth.year, _selectedMonth.month, day);
-    final dayExpenses = widget.entries[date]?['支出'] ?? [];
-    final dayTotal = dayExpenses.fold(0, (sum, e) => sum + (e['amount'] as int));
-    cumulativeExpense += dayTotal;
-    actualSpots.add(FlSpot(day.toDouble(), cumulativeExpense.toDouble()));
-  }
-
-  // 予測データを計算
-  if (actualSpots.isNotEmpty && currentDay < daysInMonth) {
-    final dailyAverage = cumulativeExpense / currentDay;
-
-    // 現在の日から予測開始
-    for (int day = currentDay; day <= daysInMonth; day++) {
-      final predictedTotal = dailyAverage * day;
-      predictionSpots.add(FlSpot(day.toDouble(), predictedTotal));
+      return '$value';
     }
   }
 
-  return {
-    'actual': actualSpots,
-    'prediction': predictionSpots,
-  };
-}
+  Map<String, List<FlSpot>> _calculateChartData() {
+    final daysInMonth = _getDaysInMonth(_selectedMonth);
+    final actualSpots = <FlSpot>[];
+    final predictionSpots = <FlSpot>[];
 
-Map<String, int> _calculatePredictionData() {
-  final daysInMonth = _getDaysInMonth(_selectedMonth);
-  final today = DateTime.now();
-  final currentDay = (today.year == _selectedMonth.year && today.month == _selectedMonth.month)
-      ? today.day : daysInMonth;
+    int cumulativeExpense = 0;
+    final today = DateTime.now();
+    final currentDay = (today.year == _selectedMonth.year && today.month == _selectedMonth.month)
+        ? today.day : daysInMonth;
 
-  int currentTotal = 0;
+    // 実際のデータを計算
+    for (int day = 1; day <= currentDay && day <= daysInMonth; day++) {
+      final date = DateTime.utc(_selectedMonth.year, _selectedMonth.month, day);
+      final dayExpenses = widget.entries[date]?['支出'] ?? [];
+      final dayTotal = dayExpenses.fold(0, (sum, e) => sum + (e['amount'] as int));
+      cumulativeExpense += dayTotal;
+      actualSpots.add(FlSpot(day.toDouble(), cumulativeExpense.toDouble()));
+    }
 
-  // 現在までの累積支出を計算
-  for (int day = 1; day <= currentDay && day <= daysInMonth; day++) {
-    final date = DateTime.utc(_selectedMonth.year, _selectedMonth.month, day);
-    final dayExpenses = widget.entries[date]?['支出'] ?? [];
-    final dayTotal = dayExpenses.fold(0, (sum, e) => sum + (e['amount'] as int));
-    currentTotal += dayTotal;
-  }
+    // 予測データを計算
+    if (actualSpots.isNotEmpty && currentDay < daysInMonth) {
+      final dailyAverage = cumulativeExpense / currentDay;
 
-  final dailyAverage = currentDay > 0 ? (currentTotal / currentDay).round() : 0;
-  final predictedTotal = dailyAverage * daysInMonth;
-  final remainingDays = daysInMonth - currentDay;
-
-  return {
-    'currentTotal': currentTotal,
-    'predictedTotal': predictedTotal,
-    'dailyAverage': dailyAverage,
-    'remainingDays': remainingDays > 0 ? remainingDays : 0,
-  };
-}
-
-int _getDaysInMonth(DateTime date) {
-  return DateTime(date.year, date.month + 1, 0).day;
-}
-
-double _calculateMaxY(Map<String, List<FlSpot>> chartData) {
-  double maxY = 1000; // 最小値
-
-  for (final spots in chartData.values) {
-    for (final spot in spots) {
-      if (spot.y > maxY) {
-        maxY = spot.y;
+      // 現在の日から予測開始
+      for (int day = currentDay; day <= daysInMonth; day++) {
+        final predictedTotal = dailyAverage * day;
+        predictionSpots.add(FlSpot(day.toDouble(), predictedTotal));
       }
     }
+
+    return {
+      'actual': actualSpots,
+      'prediction': predictionSpots,
+    };
   }
 
-  return maxY * 1.1; // 10%のマージンを追加
-}
+  Map<String, int> _calculatePredictionData() {
+    final daysInMonth = _getDaysInMonth(_selectedMonth);
+    final today = DateTime.now();
+    final currentDay = (today.year == _selectedMonth.year && today.month == _selectedMonth.month)
+        ? today.day : daysInMonth;
 
-double _calculateGridInterval(Map<String, List<FlSpot>> chartData) {
-  final maxY = _calculateMaxY(chartData);
+    int currentTotal = 0;
 
-  // より適切な間隔を計算
-  if (maxY <= 5000) {
-    return 1000;
-  } else if (maxY <= 10000) {
-    return 2000;
-  } else if (maxY <= 25000) {
-    return 5000;
-  } else if (maxY <= 50000) {
-    return 10000;
-  } else if (maxY <= 100000) {
-    return 20000;
-  } else {
-    return (maxY / 5).roundToDouble();
+    // 現在までの累積支出を計算
+    for (int day = 1; day <= currentDay && day <= daysInMonth; day++) {
+      final date = DateTime.utc(_selectedMonth.year, _selectedMonth.month, day);
+      final dayExpenses = widget.entries[date]?['支出'] ?? [];
+      final dayTotal = dayExpenses.fold(0, (sum, e) => sum + (e['amount'] as int));
+      currentTotal += dayTotal;
+    }
+
+    final dailyAverage = currentDay > 0 ? (currentTotal / currentDay).round() : 0;
+    final predictedTotal = dailyAverage * daysInMonth;
+    final remainingDays = daysInMonth - currentDay;
+
+    return {
+      'currentTotal': currentTotal,
+      'predictedTotal': predictedTotal,
+      'dailyAverage': dailyAverage,
+      'remainingDays': remainingDays > 0 ? remainingDays : 0,
+    };
   }
-}
+
+  int _getDaysInMonth(DateTime date) {
+    return DateTime(date.year, date.month + 1, 0).day;
+  }
+
+  double _calculateMaxY(Map<String, List<FlSpot>> chartData) {
+    double maxY = 1000; // 最小値
+
+    for (final spots in chartData.values) {
+      for (final spot in spots) {
+        if (spot.y > maxY) {
+          maxY = spot.y;
+        }
+      }
+    }
+
+    return maxY * 1.1; // 10%のマージンを追加
+  }
+
+  double _calculateGridInterval(Map<String, List<FlSpot>> chartData) {
+    final maxY = _calculateMaxY(chartData);
+
+    // より適切な間隔を計算
+    if (maxY <= 5000) {
+      return 1000;
+    } else if (maxY <= 10000) {
+      return 2000;
+    } else if (maxY <= 25000) {
+      return 5000;
+    } else if (maxY <= 50000) {
+      return 10000;
+    } else if (maxY <= 100000) {
+      return 20000;
+    } else {
+      return (maxY / 5).roundToDouble();
+    }
+  }
 }

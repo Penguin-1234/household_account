@@ -93,84 +93,221 @@ class _PredictionPageState extends State<PredictionPage> {
       elevation: 4,
       child: Padding(
         padding: const EdgeInsets.all(16),
-        child: LineChart(
-          LineChartData(
-            gridData: FlGridData(
-              show: true,
-              drawVerticalLine: true,
-              horizontalInterval: _calculateGridInterval(chartData),
-              verticalInterval: 5,
-            ),
-            titlesData: FlTitlesData(
-              leftTitles: AxisTitles(
-                sideTitles: SideTitles(
-                  showTitles: true,
-                  reservedSize: 60,
-                  getTitlesWidget: (value, meta) {
-                    return Text(
-                      '${(value / 1000).toStringAsFixed(0)}k',
-                      style: const TextStyle(fontSize: 10),
-                    );
-                  },
-                ),
-              ),
-              bottomTitles: AxisTitles(
-                sideTitles: SideTitles(
-                  showTitles: true,
-                  reservedSize: 30,
-                  interval: 5,
-                  getTitlesWidget: (value, meta) {
-                    if (value.toInt() % 5 == 0 && value.toInt() <= 31) {
-                      return Text(
-                        '${value.toInt()}日',
-                        style: const TextStyle(fontSize: 10),
+        child: Column(
+          children: [
+            // グラフタイトルと凡例
+            _buildChartHeader(),
+            const SizedBox(height: 16),
+            // グラフ本体
+            Expanded(
+              child: LineChart(
+                LineChartData(
+                  gridData: FlGridData(
+                    show: true,
+                    drawVerticalLine: true,
+                    drawHorizontalLine: true,
+                    horizontalInterval: _calculateGridInterval(chartData),
+                    verticalInterval: 5,
+                    getDrawingHorizontalLine: (value) {
+                      return FlLine(
+                        color: Colors.grey.withOpacity(0.3),
+                        strokeWidth: 1,
                       );
-                    }
-                    return const Text('');
-                  },
+                    },
+                    getDrawingVerticalLine: (value) {
+                      return FlLine(
+                        color: Colors.grey.withOpacity(0.3),
+                        strokeWidth: 1,
+                      );
+                    },
+                  ),
+                  titlesData: FlTitlesData(
+                    leftTitles: AxisTitles(
+                      sideTitles: SideTitles(
+                        showTitles: true,
+                        reservedSize: 80,
+                        interval: _calculateGridInterval(chartData),
+                        getTitlesWidget: (value, meta) {
+                          return Padding(
+                            padding: const EdgeInsets.only(right: 8),
+                            child: Text(
+                              _formatCurrency(value.toInt()),
+                              style: const TextStyle(
+                                fontSize: 11,
+                                color: Colors.black54,
+                              ),
+                              textAlign: TextAlign.right,
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                    bottomTitles: AxisTitles(
+                      sideTitles: SideTitles(
+                        showTitles: true,
+                        reservedSize: 35,
+                        interval: 5,
+                        getTitlesWidget: (value, meta) {
+                          final day = value.toInt();
+                          if (day % 5 == 0 && day <= _getDaysInMonth(_selectedMonth)) {
+                            return Padding(
+                              padding: const EdgeInsets.only(top: 8),
+                              child: Text(
+                                '${day}日',
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  color: Colors.black54,
+                                ),
+                              ),
+                            );
+                          }
+                          return const Text('');
+                        },
+                      ),
+                    ),
+                    topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                    rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  ),
+                  borderData: FlBorderData(
+                    show: true,
+                    border: Border.all(
+                      color: Colors.grey.withOpacity(0.5),
+                      width: 1,
+                    ),
+                  ),
+                  lineBarsData: [
+                    // 実際の累積支出
+                    LineChartBarData(
+                      spots: chartData['actual']!,
+                      isCurved: true,
+                      color: const Color(0xFFE53E3E),
+                      barWidth: 4,
+                      dotData: FlDotData(
+                        show: true,
+                        getDotPainter: (spot, percent, barData, index) {
+                          return FlDotCirclePainter(
+                            radius: 4,
+                            color: const Color(0xFFE53E3E),
+                            strokeWidth: 2,
+                            strokeColor: Colors.white,
+                          );
+                        },
+                      ),
+                      belowBarData: BarAreaData(
+                        show: true,
+                        color: const Color(0xFFE53E3E).withOpacity(0.1),
+                      ),
+                    ),
+                    // 予測線
+                    if (chartData['prediction']!.isNotEmpty)
+                      LineChartBarData(
+                        spots: chartData['prediction']!,
+                        isCurved: true,
+                        color: Colors.grey.withOpacity(0.8),
+                        barWidth: 3,
+                        dotData: FlDotData(
+                          show: true,
+                          getDotPainter: (spot, percent, barData, index) {
+                            return FlDotCirclePainter(
+                              radius: 3,
+                              color: Colors.grey.withOpacity(0.8),
+                              strokeWidth: 2,
+                              strokeColor: Colors.white,
+                            );
+                          },
+                        ),
+                        dashArray: [8, 4],
+                        belowBarData: BarAreaData(
+                          show: true,
+                          color: Colors.grey.withOpacity(0.05),
+                        ),
+                      ),
+                  ],
+                  minX: 1,
+                  maxX: _getDaysInMonth(_selectedMonth).toDouble(),
+                  minY: 0,
+                  maxY: _calculateMaxY(chartData),
+                  lineTouchData: LineTouchData(
+                    enabled: true,
+                    touchTooltipData: LineTouchTooltipData(
+                      tooltipBgColor: Colors.black87,
+                      tooltipRoundedRadius: 8,
+                      getTooltipItems: (List<LineBarSpot> touchedSpots) {
+                        return touchedSpots.map((LineBarSpot touchedSpot) {
+                          final isActual = touchedSpot.barIndex == 0;
+                          final label = isActual ? 'これまで' : '予測';
+                          return LineTooltipItem(
+                            '$label\n${touchedSpot.x.toInt()}日: ${_formatCurrency(touchedSpot.y.toInt())}円',
+                            const TextStyle(
+                              color: Colors.white,
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          );
+                        }).toList();
+                      },
+                    ),
+                  ),
                 ),
               ),
-              topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-              rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
             ),
-            borderData: FlBorderData(show: true),
-            lineBarsData: [
-              // 実際の累積支出
-              LineChartBarData(
-                spots: chartData['actual']!,
-                isCurved: false,
-                color: Colors.red,
-                barWidth: 3,
-                dotData: const FlDotData(show: true),
-              ),
-              // 予測線
-              LineChartBarData(
-                spots: chartData['prediction']!,
-                isCurved: false,
-                color: Colors.grey.withOpacity(0.6),
-                barWidth: 2,
-                dotData: FlDotData(
-                  show: true,
-                  getDotPainter: (spot, percent, barData, index) {
-                    return FlDotCirclePainter(
-                      radius: 2,
-                      color: Colors.grey.withOpacity(0.6),
-                    );
-                  },
-                ),
-                dashArray: [5, 5], // 破線スタイル
-              ),
-            ],
-            minX: 1,
-            maxX: _getDaysInMonth(_selectedMonth).toDouble(),
-            minY: 0,
-            maxY: _calculateMaxY(chartData),
-          ),
+          ],
         ),
       ),
     );
   }
 
+  // グラフヘッダー（タイトルと凡例）
+  Widget _buildChartHeader() {
+    return Row(
+      children: [
+        const Expanded(
+          child: Text(
+            '月間累積支出グラフ',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: Colors.black87,
+            ),
+          ),
+        ),
+        // 凡例
+        Row(
+          children: [
+            Container(
+              width: 16,
+              height: 3,
+              decoration: const BoxDecoration(
+                color: Color(0xFFE53E3E),
+                borderRadius: BorderRadius.all(Radius.circular(2)),
+              ),
+            ),
+            const SizedBox(width: 4),
+            const Text(
+              'これまで',
+              style: TextStyle(fontSize: 12, color: Colors.black54),
+            ),
+            const SizedBox(width: 12),
+            Container(
+              width: 16,
+              height: 3,
+              decoration: BoxDecoration(
+                color: Colors.grey.withOpacity(0.8),
+                borderRadius: const BorderRadius.all(Radius.circular(2)),
+              ),
+            ),
+            const SizedBox(width: 4),
+            const Text(
+              '予測',
+              style: TextStyle(fontSize: 12, color: Colors.black54),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  // 予測情報を表示するウィジェット
   Widget _buildPredictionInfo() {
     final predictionData = _calculatePredictionData();
 
@@ -190,7 +327,7 @@ class _PredictionPageState extends State<PredictionPage> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text('現在の累積支出：'),
+                  const Text('現在の累積支出：'),
                   Text('${formatter.format(predictionData['currentTotal'])}円'),
                 ],
               ),
@@ -198,7 +335,7 @@ class _PredictionPageState extends State<PredictionPage> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text('月末予測支出：'),
+                  const Text('月末予測支出：'),
                   Text(
                     '${formatter.format(predictionData['predictedTotal'])}円',
                     style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.red),
@@ -209,7 +346,7 @@ class _PredictionPageState extends State<PredictionPage> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text('1日平均支出：'),
+                  const Text('1日平均支出：'),
                   Text('${formatter.format(predictionData['dailyAverage'])}円'),
                 ],
               ),
@@ -217,7 +354,7 @@ class _PredictionPageState extends State<PredictionPage> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text('残り日数：'),
+                  const Text('残り日数：'),
                   Text('${predictionData['remainingDays']}日'),
                 ],
               ),
@@ -226,6 +363,17 @@ class _PredictionPageState extends State<PredictionPage> {
         ),
       ),
     );
+  }
+
+  // 通貨フォーマット関数
+  String _formatCurrency(int value) {
+    if (value >= 10000) {
+      return '${(value / 10000).toStringAsFixed(1)}万';
+    } else if (value >= 1000) {
+      return '${(value / 1000).toStringAsFixed(1)}千';
+    } else {
+      return '$value';
+    }
   }
 
   Map<String, List<FlSpot>> _calculateChartData() {
@@ -312,6 +460,20 @@ class _PredictionPageState extends State<PredictionPage> {
 
   double _calculateGridInterval(Map<String, List<FlSpot>> chartData) {
     final maxY = _calculateMaxY(chartData);
-    return (maxY / 5).roundToDouble(); // 5つのグリッド線に分割
+
+    // より適切な間隔を計算
+    if (maxY <= 5000) {
+      return 1000;
+    } else if (maxY <= 10000) {
+      return 2000;
+    } else if (maxY <= 25000) {
+      return 5000;
+    } else if (maxY <= 50000) {
+      return 10000;
+    } else if (maxY <= 100000) {
+      return 20000;
+    } else {
+      return (maxY / 5).roundToDouble();
+    }
   }
 }

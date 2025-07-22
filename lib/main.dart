@@ -1,10 +1,15 @@
 import 'package:flutter/material.dart';
 import 'table_calendar.dart';
 import 'graph.dart';
+import 'package:intl/date_symbol_data_local.dart';
+import 'prediction_page2.dart';
 
-void main() {
-  runApp(const MyApp());
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await initializeDateFormatting('ja');
+  runApp(MyApp());
 }
+
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
@@ -45,18 +50,6 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final now = DateTime.now();
-    final incomeMap = getMonthlyCategoryTotals(
-      entries: _entries,
-      year: now.year,
-      month: now.month,
-      type: '収入',
-    );
-    final expenceMap = getMonthlyCategoryTotals(
-      entries: _entries,
-      year: now.year,
-      month: now.month,
-      type: '支出',
-    );
 
     // CalendarPageにはデータと更新用関数を渡す
     // GraphPageには計算された月間データを渡す
@@ -66,8 +59,10 @@ class _HomeScreenState extends State<HomeScreen> {
         onUpdateEntries: _updateEntries,
       ),
       GraphPage(
-        incomeData: incomeMap,
-        expenseData: expenceMap,),
+        entries: _entries,),
+      PredictionPage(
+        entries: _entries,
+      ),
     ];
 
     return Scaffold(
@@ -83,6 +78,10 @@ class _HomeScreenState extends State<HomeScreen> {
             icon: Icon(Icons.bar_chart),
             label: 'グラフ',
           ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.insights),
+            label: '予測',
+          ),
         ],
         onTap: (index) {
           setState(() {
@@ -92,27 +91,4 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
   }
-}
-
-//月別の支出の合計を計算する関数　requiredは引数
-Map<String, int> getMonthlyCategoryTotals({
-  required Map<DateTime, Map<String, List<Map<String, dynamic>>>> entries,
-  required int year,
-  required int month,
-  required String type, // '支出' or '収入'
-}) {
-  final Map<String, int> categoryTotals = {};
-
-  entries.forEach((date, value) {
-    if (date.year == year && date.month == month) {
-      final list = value[type] ?? [];
-      for (var entry in list) {
-        final category = entry['category'] as String;
-        final amount = entry['amount'] as int;
-        categoryTotals[category] = (categoryTotals[category] ?? 0) + amount;
-      }
-    }
-  });
-
-  return categoryTotals;
 }

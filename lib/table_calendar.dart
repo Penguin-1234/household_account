@@ -18,7 +18,7 @@ class CalendarPage extends StatefulWidget {
   State<CalendarPage> createState() => _CalendarPageState();
 }
 
-class _CalendarPageState extends State<CalendarPage> {
+class _CalendarPageState extends State<CalendarPage> with TickerProviderStateMixin {
   DateTime _focusedDay = DateTime.utc(DateTime.now().year, DateTime.now().month, DateTime.now().day);
   DateTime _currentDay = DateTime.utc(DateTime.now().year, DateTime.now().month, DateTime.now().day);
 
@@ -27,10 +27,28 @@ class _CalendarPageState extends State<CalendarPage> {
   List<String> _incomeCategories = [];
   List<String> _expenseCategories = [];
 
+  late AnimationController _animationController;
+  late Animation<double> _fadeAnimation;
+
   @override
   void initState() {
     super.initState();
     _loadCategories();
+
+    _animationController = AnimationController(
+      duration: const Duration(milliseconds: 300),
+      vsync: this,
+    );
+    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _animationController, curve: Curves.easeInOut),
+    );
+    _animationController.forward();
+  }
+
+  @override
+  void dispose() {
+    _animationController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadCategories() async {
@@ -104,151 +122,302 @@ class _CalendarPageState extends State<CalendarPage> {
     ) ?? Colors.transparent;
   }
 
+// このメソッドをまるごと置き換えてください
   @override
   Widget build(BuildContext context) {
     final summary = _getMonthlySummary();
-    final balance = summary['balance'] ?? 0;
 
     return Scaffold(
       backgroundColor: const Color(0xFFF5F5DC),
       appBar: AppBar(
+        elevation: 0,
         backgroundColor: const Color(0xFFD2B48C),
-        title: const Text('お小遣い帳'),
+        title: const Text(
+          'お小遣い帳',
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: 20,
+            color: Colors.white,
+          ),
+        ),
         actions: [
-          // IconButtonの代わりにTextButtonを配置
-          TextButton.icon(
-            onPressed: _navigateToSettings,
-            icon: const Icon(Icons.category_outlined, color: Colors.white), // アイコン
-            label: const Text(
-              'カテゴリ設定', // 表示するテキスト
-              style: TextStyle(color: Colors.white), // テキストの色を白に
-            ),
-            style: TextButton.styleFrom(
-              // ボタンの見た目を調整
-              foregroundColor: Colors.white, // ボタンを押したときのエフェクト色
+          Container(
+            margin: const EdgeInsets.only(right: 16),
+            child: TextButton.icon(
+              onPressed: _navigateToSettings,
+              icon: Container(
+                padding: const EdgeInsets.all(4),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.category_outlined, color: Colors.white, size: 18),
+              ),
+              label: const Text(
+                'カテゴリ設定',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              style: TextButton.styleFrom(
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
             ),
           ),
-          const SizedBox(width: 8), // 右端に少し余白を追加
         ],
       ),
+      // 【変更点】body全体をSingleChildScrollViewでラップ
       body: SafeArea(
-        child: Column(
-          children: [
-            TableCalendar(
-              locale: 'ja_JP',
-              firstDay: DateTime.utc(2010, 1, 1),
-              lastDay: DateTime.utc(2030, 12, 31),
-              focusedDay: _focusedDay,
-              selectedDayPredicate: (day) => isSameDay(_currentDay, day),
-              onDaySelected: (selectedDay, focusedDay) {
-                setState(() {
-                  _currentDay = selectedDay;
-                  _focusedDay = focusedDay;
-                });
-              },
-              headerStyle: const HeaderStyle(
-                formatButtonVisible: false,
-                titleCentered: true,
-              ),
-              calendarStyle: const CalendarStyle(
-                todayDecoration: BoxDecoration(
-                  color: Colors.green,
-                  shape: BoxShape.rectangle,
+        child: FadeTransition(
+          opacity: _fadeAnimation,
+          child: SingleChildScrollView( // <--- 1. ここを追加
+            child: Column(             // <--- 2. Expandedが不要になり、すべてがこのColumnの子になる
+              children: [
+                // カレンダーコンテナ
+                Container(
+                  margin: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(20),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.1),
+                        blurRadius: 20,
+                        offset: const Offset(0, 10),
+                      ),
+                    ],
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(20),
+                    child: TableCalendar(
+                      // ... (TableCalendarのプロパティは変更なし)
+                      locale: 'ja_JP',
+                      firstDay: DateTime.utc(2010, 1, 1),
+                      lastDay: DateTime.utc(2030, 12, 31),
+                      focusedDay: _focusedDay,
+                      selectedDayPredicate: (day) => isSameDay(_currentDay, day),
+                      onDaySelected: (selectedDay, focusedDay) {
+                        setState(() {
+                          _currentDay = selectedDay;
+                          _focusedDay = focusedDay;
+                        });
+                      },
+                      headerStyle: HeaderStyle(
+                        formatButtonVisible: false,
+                        titleCentered: true,
+                        titleTextStyle: const TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF8B4513),
+                        ),
+                        leftChevronIcon: Icon(
+                          Icons.chevron_left,
+                          color: const Color(0xFF8B4513),
+                        ),
+                        rightChevronIcon: Icon(
+                          Icons.chevron_right,
+                          color: const Color(0xFF8B4513),
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF5F5DC).withOpacity(0.3),
+                        ),
+                        headerPadding: const EdgeInsets.symmetric(vertical: 16),
+                      ),
+                      calendarStyle: CalendarStyle(
+                        outsideDaysVisible: true,
+                        weekendTextStyle: const TextStyle(color: Color(0xFF8B4513)),
+                        holidayTextStyle: const TextStyle(color: Colors.red),
+                        defaultTextStyle: const TextStyle(
+                          color: Color(0xFF2C2C2C),
+                          fontWeight: FontWeight.w500,
+                        ),
+                        todayDecoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [Colors.green.shade300, Colors.green.shade600],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          shape: BoxShape.circle,
+                        ),
+                        selectedDecoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [Colors.orange.shade300, Colors.orange.shade600],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          shape: BoxShape.circle,
+                        ),
+                        markerDecoration: const BoxDecoration(
+                          color: Colors.blueAccent,
+                          shape: BoxShape.circle,
+                        ),
+                        cellMargin: const EdgeInsets.all(4),
+                      ),
+                      calendarBuilders: CalendarBuilders(
+                        defaultBuilder: (context, day, focusedDay) {
+                          return _buildCalendarCell(day, false, false);
+                        },
+                        todayBuilder: (context, day, focusedDay) {
+                          return _buildCalendarCell(day, true, false);
+                        },
+                        selectedBuilder: (context, day, focusedDay) {
+                          return _buildCalendarCell(day, false, true);
+                        },
+                        outsideBuilder: (context, day, focusedDay) {
+                          return _buildCalendarCell(day, false, false, isOutside: true);
+                        },
+                      ),
+                      onPageChanged: (focusedDay) {
+                        setState(() {
+                          _focusedDay = focusedDay;
+                        });
+                      },
+                    ),
+                  ),
                 ),
-                selectedDecoration: BoxDecoration(
-                  color: Colors.orange,
-                  shape: BoxShape.rectangle,
+
+                // 凡例
+                Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.7),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: _buildLegend(),
                 ),
-              ),
-              // カスタムビルダーで各日付セルの背景色を設定
-              calendarBuilders: CalendarBuilders(
-                defaultBuilder: (context, day, focusedDay) {
-                  return _buildCalendarCell(day, false, false);
-                },
-                todayBuilder: (context, day, focusedDay) {
-                  return _buildCalendarCell(day, true, false);
-                },
-                selectedBuilder: (context, day, focusedDay) {
-                  return _buildCalendarCell(day, false, true);
-                },
-                outsideBuilder: (context, day, focusedDay) {
-                  return _buildCalendarCell(day, false, false, isOutside: true);
-                },
-              ),
-              onPageChanged: (focusedDay) {
-                setState(() {
-                  _focusedDay = focusedDay;
-                });
-              },
-            ),
-            const SizedBox(height: 12),
 
-            // 凡例を追加
-            _buildLegend(),
+                // 月次サマリーカード
+                _buildMonthlySummaryCard(summary),
 
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-              child: Wrap(
-                alignment: WrapAlignment.center,
-                spacing: 4,
-                runSpacing: 8,
-                children: [
-                  const Text(
-                    '今月の合計',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                const SizedBox(height: 16),
+
+                // 【変更点】Expandedを削除し、ListViewをColumnに変更
+                Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 16),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(20), // 全体を丸くする
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.1),
+                        blurRadius: 20,
+                        offset: const Offset(0, 5), // 影を調整
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: 16),
-                  Text('収入：${formatter.format(summary['income'])}円'),
-                  const SizedBox(width: 16),
-                  Text('支出：${formatter.format(summary['expense'])}円'),
-                  const SizedBox(width: 16),
-                  Text(
-                      '収支：${balance > 0 ? '+' : ''}${formatter.format(summary['balance'])}円'
+                  // ListViewの代わりにPaddingとColumnを使用
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column( // <--- 3. ListViewをColumnに変更
+                      children: [
+                        _buildEntryList('収入'),
+                        const SizedBox(height: 16),
+                        _buildEntryList('支出'),
+                      ],
+                    ),
                   ),
-                ],
-              ),
+                ),
+                const SizedBox(height: 16), // スクロールした際の下部の余白
+              ],
             ),
-            Expanded(
-              child: ListView(
-                padding: const EdgeInsets.all(8),
-                children: [
-                  _buildEntryList('収入'),
-                  _buildEntryList('支出'),
-                  const Divider(),
-                  Text(
-                    '収支：${balance > 0 ? '+' : ''}${formatter.format(summary['balance'])}円',
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                ],
-              ),
+          ),
+        ),
+      ),
+      bottomNavigationBar: Container(
+        // ... (bottomNavigationBarは変更なし)
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.1),
+              blurRadius: 20,
+              offset: const Offset(0, -5),
             ),
           ],
         ),
-      ),
-      bottomNavigationBar: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
         child: Row(
-          mainAxisSize: MainAxisSize.min,
           children: [
             Expanded(
-              child: ElevatedButton(
-                onPressed: () => _showEntryDialog(type: '収入'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.blue,
-                  minimumSize: const Size(double.infinity, 48),
+              child: Container(
+                height: 56,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [Colors.blue.shade400, Colors.blue.shade600],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.blue.withOpacity(0.3),
+                      blurRadius: 10,
+                      offset: const Offset(0, 5),
+                    ),
+                  ],
                 ),
-                child: const Text('収入を追加'),
+                child: ElevatedButton.icon(
+                  onPressed: () => _showEntryDialog(type: '収入'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.transparent,
+                    shadowColor: Colors.transparent,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                  ),
+                  icon: const Icon(Icons.add, color: Colors.white),
+                  label: const Text(
+                    '収入を追加',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
               ),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: 16),
             Expanded(
-              child: ElevatedButton(
-                onPressed: () => _showEntryDialog(type: '支出'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.red,
-                  minimumSize: const Size(double.infinity, 48),
+              child: Container(
+                height: 56,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [Colors.red.shade400, Colors.red.shade600],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.red.withOpacity(0.3),
+                      blurRadius: 10,
+                      offset: const Offset(0, 5),
+                    ),
+                  ],
                 ),
-                child: const Text('支出を追加'),
+                child: ElevatedButton.icon(
+                  onPressed: () => _showEntryDialog(type: '支出'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.transparent,
+                    shadowColor: Colors.transparent,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                  ),
+                  icon: const Icon(Icons.remove, color: Colors.white),
+                  label: const Text(
+                    '支出を追加',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
               ),
             ),
           ],
@@ -257,83 +426,144 @@ class _CalendarPageState extends State<CalendarPage> {
     );
   }
 
+  //【新規ウィジェット】コンパクトな月次サマリーカード
+  Widget _buildMonthlySummaryCard(Map<String, int> summary) {
+    final balance = summary['balance'] ?? 0;
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFD2B48C),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 10,
+            offset: const Offset(0, 5),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          _buildCompactSummaryItem('収入', summary['income'] ?? 0, Colors.blue.shade600),
+          _buildCompactSummaryItem('支出', summary['expense'] ?? 0, Colors.red.shade600),
+          _buildCompactSummaryItem('残高', balance, balance >= 0 ? Colors.green.shade600 : Colors.red.shade600),
+        ],
+      ),
+    );
+  }
+  //【新規ウィジェット】コンパクトなサマリーの各項目
+  Widget _buildCompactSummaryItem(String label, int amount, Color color) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 13,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          '${formatter.format(amount)}円',
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ],
+    );
+  }
+
+
   // カスタムカレンダーセルビルダー
   Widget _buildCalendarCell(DateTime day, bool isToday, bool isSelected, {bool isOutside = false}) {
     final expenseColor = _getExpenseColor(day);
+    final hasExpense = _getDayExpenseTotal(day) > 0;
 
-    Color textColor = isOutside ? Colors.grey : Colors.black;
-    Color decorationColor;
+    Color textColor = isOutside ? Colors.grey.shade400 : const Color(0xFF2C2C2C);
 
-    if (isSelected) {
-      decorationColor = Colors.orange;
-    } else if (isToday) {
-      decorationColor = Colors.green;
-    } else {
-      decorationColor = expenseColor;
-    }
-
-    return Container(
+    Widget child = Container(
       margin: const EdgeInsets.all(2.0),
       decoration: BoxDecoration(
-        color: decorationColor,
-        shape: BoxShape.rectangle,
-        borderRadius: BorderRadius.circular(4.0),
-        border: isSelected || isToday ? null : Border.all(
-          color: expenseColor.opacity > 0 ? Colors.red.withOpacity(0.3) : Colors.transparent,
-          width: 1.0,
-        ),
+        color: isSelected
+            ? null
+            : isToday
+            ? null
+            : hasExpense
+            ? expenseColor
+            : Colors.transparent,
+        gradient: isSelected
+            ? LinearGradient(
+          colors: [Colors.orange.shade300, Colors.orange.shade600],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        )
+            : isToday
+            ? LinearGradient(
+          colors: [Colors.green.shade300, Colors.green.shade600],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        )
+            : null,
+        shape: BoxShape.circle,
+        boxShadow: (isSelected || isToday) ? [
+          BoxShadow(
+            color: (isSelected ? Colors.orange : Colors.green).withOpacity(0.3),
+            blurRadius: 8,
+            offset: const Offset(0, 3),
+          ),
+        ] : null,
       ),
       child: Center(
         child: Text(
           '${day.day}',
           style: TextStyle(
             color: (isSelected || isToday) ? Colors.white : textColor,
-            fontWeight: isToday ? FontWeight.bold : FontWeight.normal,
+            fontWeight: (isSelected || isToday) ? FontWeight.bold : FontWeight.w500,
+            fontSize: 14,
           ),
         ),
       ),
+    );
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 200),
+      child: child,
     );
   }
 
   // 凡例ウィジェット
   Widget _buildLegend() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Text('支出額: ', style: TextStyle(fontSize: 12)),
-          Container(
-            width: 15,
-            height: 15,
-            decoration: const BoxDecoration(
-              color: Color(0xFFFFE4E1),
-              shape: BoxShape.rectangle,
-              borderRadius: BorderRadius.all(Radius.circular(2)),
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        const Text(
+          '支出額 (少)',
+          style: TextStyle(fontSize: 12, color: Color(0xFF8B4513)),
+        ),
+        const SizedBox(width: 8),
+        Container(
+          width: 100,
+          height: 10,
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [Color(0xFFFFE4E1), Color(0xFFDC143C)],
             ),
+            borderRadius: BorderRadius.circular(5),
+            border: Border.all(color: Colors.grey.withOpacity(0.2)),
           ),
-          const Text(' 少 ', style: TextStyle(fontSize: 10)),
-          Container(
-            width: 100,
-            height: 8,
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                colors: [Color(0xFFFFE4E1), Color(0xFFDC143C)],
-              ),
-            ),
-          ),
-          const Text(' 多 ', style: TextStyle(fontSize: 10)),
-          Container(
-            width: 15,
-            height: 15,
-            decoration: const BoxDecoration(
-              color: Color(0xFFDC143C),
-              shape: BoxShape.rectangle,
-              borderRadius: BorderRadius.all(Radius.circular(2)),
-            ),
-          ),
-        ],
-      ),
+        ),
+        const SizedBox(width: 8),
+        const Text(
+          '(多)',
+          style: TextStyle(fontSize: 12, color: Color(0xFF8B4513)),
+        ),
+      ],
     );
   }
 
@@ -342,25 +572,114 @@ class _CalendarPageState extends State<CalendarPage> {
     return widget.entries[date]?[type] ?? [];
   }
 
+  //【変更点】日次リストのUIを改善
   Widget _buildEntryList(String type) {
     final entries = _getEntriesForDay(_currentDay, type);
     final total = entries.fold(0, (sum, e) => sum + (e['amount'] as int));
+    final isIncome = type == '収入';
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          '$type一覧:',
-          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: isIncome ? Colors.blue.shade50 : Colors.red.shade50,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: (isIncome ? Colors.blue : Colors.red).shade100,
         ),
-        ...entries.map((entry) => ListTile(
-          leading: Icon(_getCategoryIcon(entry['category'])),
-          title: Text('${entry['category']}：${formatter.format(entry['amount'])}円'),
-        )),
-        Text('合計：${formatter.format(total)}円',
-            style: const TextStyle(fontWeight: FontWeight.bold)),
-        const SizedBox(height: 12),
-      ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Icon(
+                    isIncome ? Icons.arrow_circle_up_outlined : Icons.arrow_circle_down_outlined,
+                    color: isIncome ? Colors.blue.shade600 : Colors.red.shade600,
+                    size: 28,
+                  ),
+                  const SizedBox(width: 12),
+                  Text(
+                    '$type一覧',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: isIncome ? Colors.blue.shade800 : Colors.red.shade800,
+                    ),
+                  ),
+                ],
+              ),
+              Text(
+                '合計: ${formatter.format(total)}円',
+                style: TextStyle(
+                  color: isIncome ? Colors.blue.shade700 : Colors.red.shade700,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                ),
+              ),
+            ],
+          ),
+          Divider(
+            height: 24,
+            thickness: 1,
+            color: (isIncome ? Colors.blue : Colors.red).shade100,
+          ),
+          if (entries.isEmpty)
+            Container(
+              padding: const EdgeInsets.symmetric(vertical: 24),
+              alignment: Alignment.center,
+              child: Text(
+                '${type}データがありません',
+                style: TextStyle(
+                  color: Colors.grey.shade600,
+                  fontSize: 14,
+                ),
+              ),
+            )
+          else
+            ...entries.map((entry) => Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: Row(
+                children: [
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Icon(
+                      _getCategoryIcon(entry['category']),
+                      size: 22,
+                      color: isIncome ? Colors.blue.shade600 : Colors.red.shade600,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      entry['category'],
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 15,
+                        color: Color(0xFF333333),
+                      ),
+                    ),
+                  ),
+                  Text(
+                    '${formatter.format(entry['amount'])}円',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                      color: isIncome ? Colors.blue.shade800 : Colors.red.shade800,
+                    ),
+                  ),
+                ],
+              ),
+            )),
+        ],
+      ),
     );
   }
 
@@ -419,7 +738,14 @@ class _CalendarPageState extends State<CalendarPage> {
     final categories = type == '支出' ? _expenseCategories : _incomeCategories;
     if (categories.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('${type}カテゴリが登録されていません。設定画面から追加してください。')),
+        SnackBar(
+          content: Text('${type}カテゴリが登録されていません。設定画面から追加してください。'),
+          backgroundColor: Colors.orange.shade600,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
       );
       return;
     }
@@ -430,11 +756,12 @@ class _CalendarPageState extends State<CalendarPage> {
       builder: (context) {
         return StatefulBuilder(
           builder: (context, setState) => AlertDialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
             title: Text('${type}の追加'),
             content: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                DropdownButton<String>(
+                DropdownButtonFormField<String>(
                   value: selectedCategory,
                   items: categories
                       .map((category) => DropdownMenuItem(
@@ -449,11 +776,20 @@ class _CalendarPageState extends State<CalendarPage> {
                       });
                     }
                   },
+                  decoration: InputDecoration(
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 16)
+                  ),
                 ),
+                const SizedBox(height: 16),
                 TextField(
                   controller: controller,
                   keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(hintText: '金額を入力（例：1,000）'),
+                  decoration: InputDecoration(
+                    hintText: '金額',
+                    prefixIcon: Icon(Icons.currency_yen, color: Colors.grey.shade600),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
                 ),
               ],
             ),
@@ -464,14 +800,19 @@ class _CalendarPageState extends State<CalendarPage> {
                 },
                 child: const Text('キャンセル'),
               ),
-              TextButton(
+              ElevatedButton(
                 onPressed: () {
-                  final amount = int.tryParse(controller.text);
+                  final amount = int.tryParse(controller.text.replaceAll(',', ''));
                   if (amount != null && amount > 0) {
                     Navigator.pop(context, {
                       'category': selectedCategory,
                       'amount': amount,
                     });
+                  } else {
+                    // 金額が不正な場合のエラー表示
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('有効な金額を入力してください。'), backgroundColor: Colors.red),
+                    );
                   }
                 },
                 child: const Text('追加'),

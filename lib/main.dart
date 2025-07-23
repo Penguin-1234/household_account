@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'table_calendar.dart';
 import 'graph.dart';
 import 'package:intl/date_symbol_data_local.dart';
-import 'prediction_page2.dart';
+import 'prediction_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
